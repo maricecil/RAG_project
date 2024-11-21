@@ -21,3 +21,5 @@ splitted_doc2 = splitter.split_documents(doc2)
 
 document = splitted_doc1 + splitted_doc2
 uuids = [str(uuid4()) for _ in range(len(document))]
+
+
