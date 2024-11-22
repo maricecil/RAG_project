@@ -7,7 +7,10 @@ from uuid import uuid4
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 import faiss
+from nltk.corpus import stopwords
+import re
 from langchain_core.output_parsers import StrOutputParser
+
 openai.api_key = os.getenv("OPENAI_API_KEY")
 warnings.filterwarnings(action='ignore')
 
@@ -30,7 +33,16 @@ uuids = [str(uuid4()) for _ in range(len(document))]
 embeddings = HuggingFaceEmbeddings(model_name = 'sentence-transformers/all-MiniLM-L6-v2')
 faiss = FAISS.from_documents(documents = document, embedding = embeddings, ids = uuids)
 
+def stopwords(result):
+    stop_words = set(stopwords.words('korean'))
+    clean_text = [word for word in result if word not in stop_words]
+    return ' '.join(clean_text)
 query = '딥러닝은 무엇인가요? 딥러닝과 머신러닝의 차이는?'
+
+def clean_text(result):
+    return re.sub(r'[^가-힣\s]', '', result)
+
+parser = StrOutputParser()
 result = faiss.similarity_search(query, k = 3)
 
 print(result)
