@@ -33,16 +33,31 @@ uuids = [str(uuid4()) for _ in range(len(document))]
 embeddings = HuggingFaceEmbeddings(model_name = 'sentence-transformers/all-MiniLM-L6-v2')
 faiss = FAISS.from_documents(documents = document, embedding = embeddings, ids = uuids)
 
-def stopwords(result):
-    stop_words = set(stopwords.words('korean'))
-    clean_text = [word for word in result if word not in stop_words]
-    return ' '.join(clean_text)
 query = '딥러닝은 무엇인가요? 딥러닝과 머신러닝의 차이는?'
-
-def clean_text(result):
-    return re.sub(r'[^가-힣\s]', '', result)
-
 parser = StrOutputParser()
 result = faiss.similarity_search(query, k = 3)
+
+class datapreprocessing:
+    def __init__(self, result):
+        self.result = result
+        
+    def stopwords(self):
+        stop_words = set(stopwords.words('korean'))
+        clean_text = [word for word in self.result if word not in stop_words]
+        return ' '.join(clean_text)
+    def clean_text(self, stopwords_result): 
+        return re.sub(r'[^가-힣\s]', '', stopwords_result)
+    
+data_instance = datapreprocessing(result) 
+return_stopwords = data_instance.stopwords() 
+return_instance = data_instance.clean_text(return_stopwords) 
+# class CleanText(result):
+# def stopwords(result):
+#     stop_words = set(stopwords.words('korean'))
+#     clean_text = [word for word in result if word not in stop_words]
+#     return ' '.join(clean_text)
+
+# def clean_text(result):
+#     return re.sub(r'[^가-힣\s]', '', result)
 
 print(result)
