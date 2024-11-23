@@ -11,6 +11,7 @@ from nltk.corpus import stopwords
 import re
 from langchain_core.output_parsers import StrOutputParser
 from langchain.embeddings import OpenAIEmbeddings
+from openai import OpenAI
 openai.api_key = os.getenv("OPENAI_API_KEY")
 warnings.filterwarnings(action='ignore')
 
@@ -23,7 +24,7 @@ except Exception as e:
         print(f'PDF 파일에 에러가 있습니다: {e}')
 
 
-splitter = RecursiveCharacterTextSplitter(chunk_size = 2000, chunk_overlap = 500)
+splitter = RecursiveCharacterTextSplitter(chunk_size = 1000, chunk_overlap = 100)
 splitted_doc1 = splitter.split_documents(doc1)
 splitted_doc2 = splitter.split_documents(doc2)
 
@@ -33,7 +34,7 @@ uuids = [str(uuid4()) for _ in range(len(document))]
 embeddings = OpenAIEmbeddings()
 faiss = FAISS.from_documents(documents = document, embedding = embeddings, ids = uuids)
 
-query = '딥러닝은 무엇인가요? 딥러닝과 머신러닝의 차이는?'
+query = 'Deep Learning관련 면접질문과 답변을 pdf파일로 준비해왔어. 여기 올리면 진위여부를 분별해 줄 수 있어??'
 parser = StrOutputParser()
 result = faiss.similarity_search(query, k = 5)
 class datapreprocessing:
@@ -43,7 +44,6 @@ class datapreprocessing:
     def clean_text(self): 
         text = ' '.join([doc.page_content for doc in self.result])
         text = re.sub(r'\s+', ' ', text)
-        text = re.sub(r'[^가-힣\s]', '', text)
         text = text.strip()
         
         sentences = text.split('. ')
@@ -61,4 +61,15 @@ return_instance = data_instance.clean_text()
 # def clean_text(result):
 #     return re.sub(r'[^가-힣\s]', '', result)
 
-print(return_instance)
+client = OpenAI()
+completion = client.chat.completions.create(
+    model = 'gpt-4o',
+    messages = [
+        {'role' : 'system', 'content' : "지금부터 내가 준 텍스트를 변형, 추가 혹은 다른 단어, 그리고 마음대로 다르게 변경하면 절대 안되는데, 그냥 읽기 좋게 바꿔줘"} ,
+        {'role' : 'user', 'content': return_instance}
+    ],
+    temperature = 0,
+    max_tokens= 5000
+    )
+final_answer = completion.choices[0].message.content
+print(final_answer)
