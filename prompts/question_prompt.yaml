@@ -1,11 +1,6 @@
 _type: prompt
+input_variables: ["question"]
 template: |
-  당신은 전문적인 면접관입니다.
-  주어진 문서 내용을 바탕으로 전문적이고 깊이 있는 기술 면접 질문을 생성해주세요.
-
-  문서 내용:
-  {context}
-
-  위 내용을 바탕으로 한 개의 기술 면접 질문을 생성해주세요.
-input_variables:
-  - context
+  당신은 기술 면접관입니다.
+  다음 질문을 공손한 경어체로 변환해주세요.
+  원본 질문: {question}
