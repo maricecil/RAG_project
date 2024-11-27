@@ -1,4 +1,4 @@
-# 1. 프로그램에 필요한 도구들을 가져옵니다
+# 필요한 라이브러리들을 가져옵니다
 import os  # 파일/폴더 관리를 위한 라이브러리
 import streamlit as st  # 웹 애플리케이션을 만드는 라이브러리
 from dotenv import load_dotenv  # 환경변수를 불러오는 라이브러리
@@ -16,11 +16,12 @@ import random  # 무작위 선택을 위한 라이브러리
 import PyPDF2  # PDF 파일을 다루는 라이브러리
 import io  # 입출력 작업을 위한 라이브러리
 import re  # 텍스트 패턴을 찾는 라이브러리
-import json # JSON 형식의 데이터를 다루는 도구
-from datetime import datetime # 날짜와 시간을 다루는 도구
-import pathlib # 파일 경로를 더 쉽게 다루는 도구
-
-# 2. 면접 주제와 관련 정보를 정리합니다
+import json
+from datetime import datetime
+import pathlib
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from functools import wraps
 # 각 면접 주제(카테고리)와 영어 이름을 연결하는 사전
 CATEGORY_MAPPING = {
     "파이썬": "python",
@@ -33,7 +34,7 @@ CATEGORY_MAPPING = {
     "알고리즘": "algorithm"
 }
 
-# 3. 각 주제별로 읽을 PDF 파일 이름을 정합니다
+# 각 카테고리별로 어떤 PDF 파일을 읽을지 정하는 사전
 PDF_FILE_MAPPING = {
     "파이썬": "python.pdf",
     "머신러닝": "machine_learning.pdf",
@@ -45,15 +46,17 @@ PDF_FILE_MAPPING = {
     "알고리즘": "algorithm.pdf"
 }
 
-# 4. AI에게 줄 지시사항을 프롬프트에서 불러옵니다
+# AI에게 줄 지시사항(프롬프트)을 파일에서 불러옵니다
 feedback_prompt = load_prompt("prompts/feedback_prompt.yaml")  # 피드백용 지시사항
 question_prompt = load_prompt("prompts/question_prompt.yaml")  # 질문용 지시사항
 
-# 5. 프로그램 시작 전 기본 설정
-load_dotenv() # OpenAI API 키 등의 중요 정보를 환경변수에서 불러옵니다
-logging.langsmith("[Project] PDF_RAG") # 프로젝트 이름을 기록합니다
+# OpenAI API 키 등의 중요 정보를 환경변수에서 불러옵니다
+load_dotenv()
 
-# 6. 필요한 폴더들을 만듭니다
+# 프로젝트 이름을 기록합니다
+logging.langsmith("[Project] PDF_RAG")
+
+# 필요한 폴더들이 없다면 새로 만듭니다
 if not os.path.exists(".cache"):
     os.mkdir(".cache")
 if not os.path.exists(".cache/files"):
@@ -61,25 +64,32 @@ if not os.path.exists(".cache/files"):
 if not os.path.exists(".cache/embeddings"):
     os.mkdir(".cache/embeddings")
 
-# 7. 웹페이지의 제목을 설정합니다 # streamlit title
+# 웹페이지의 제목을 설정합니다 # streamlit title
 st.title("AI 웹 개발자 면접 튜터링🚀")
 
-# 8. 대화 내용을 저장할 변수들을 초기화합니다
-if "messages" not in st.session_state:  # 이전 대화가 없다면
-    st.session_state["messages"] = []   # 새로운 대화 목록을 만듭니다
-if "chain" not in st.session_state:     # AI 처리 과정이 없다면
-    st.session_state["chain"] = None    # 새로 만들 준비를 합니다
-if "selected_category" not in st.session_state:  # 선택된 주제가 없다면
-    st.session_state["selected_category"] = None # 새로 선택할 준비를 합니다
-if "authenticated" not in st.session_state: # 로그인 상태가 없다면
-    st.session_state["authenticated"] = False # 로그인 준비를 합니다 # streamlit session_state
+# 기존 코드의 분산된 세션 상태 초기화를 하나로 통합
+def initialize_session_state():
+    default_states = {
+        "messages": [],
+        "chain": None,
+        "selected_category": None,
+        "authenticated": False,
+        "user_id": None,
+        "used_topics": set()
+    }
+    for key, default_value in default_states.items():
+        if key not in st.session_state:
+            st.session_state[key] = default_value
 
-# 이미 사용한 질문들을 기억하기 위한 변수를 초기화합니다
-if "used_topics" not in st.session_state:
-    st.session_state["used_topics"] = set() # 사용한 질문들을 저장할 집합
+# 사용
+initialize_session_state()
 
 # PDF 파일을 읽어서 AI가 이해할 수 있는 형태로 바꾸는 함수
-@st.cache_resource(show_spinner="면접질문을 준비하는 중입니다...")
+@st.cache_resource(
+    ttl=3600,  # 1시간 캐시
+    max_entries=100,
+    show_spinner="면접질문을 준비하는 중입니다..."
+)
 def embed_files_from_directory(directory_path):
     try:
         # PDF 파일이 있는지 확인합니다
@@ -102,7 +112,12 @@ def embed_files_from_directory(directory_path):
             return None
 
         # 긴 문서를 작은 조각으로 나눕니다
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=50)
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=500,  # 더 작은 청크 사이즈
+            chunk_overlap=50,
+            length_function=len,
+            separators=["\n\n", "\n", " ", ""]
+        )
         split_documents = text_splitter.split_documents(docs)
 
         if not split_documents:
@@ -111,17 +126,25 @@ def embed_files_from_directory(directory_path):
 
         # 텍스트를 AI가 이해할 수 있는 형태(임베딩)로 변환합니다
         embeddings = OpenAIEmbeddings()
-        vectorstore = FAISS.from_documents(documents=split_documents, embedding=embeddings)
-        retriever = vectorstore.as_retriever()
+        vectorstore = FAISS.from_documents(
+            documents=split_documents, 
+            embedding=embeddings,
+            nlist=100,  # 벡터 클러스터 수
+            nprobe=10   # 검색 시 확인할 클러스터 수
+        )
+        retriever = vectorstore.as_retriever(
+            search_type="similarity",
+            search_kwargs={"k": 3}  # 상위 3개 문서만 검색
+        )
         return retriever
     except Exception as e:
         st.error(f"PDF 파일을 로드하는 중 오류가 발생했습니다: {e}")
         return None
 
-# 11. 사용자가 선택할 수 있는 면접 주제들을 보여줍니다 # streamlit selectbox
+# 사용자가 선택할 수 있는 면접 주제들을 보여줍니다 # streamlit selectbox
 category = st.selectbox("카테고리를 선택하세요:", ["파이썬", "머신러닝", "딥러닝", "데이터구조", "운영체제", "네트워크", "통계", "알고리즘"])
 
-# 12. 각 주제별로 PDF 파일이 있는 폴더 위치를 지정합니다
+# 각 주제별로 PDF 파일이 있는 폴더 위치를 지정합니다
 directory_mapping = {
     "파이썬": "data/python/",
     "머신러닝": "data/machine_learning/",
@@ -133,17 +156,17 @@ directory_mapping = {
     "알고리즘": "data/algorithm/"
 }
 
-# 13. 필요한 폴더들이 없다면 새로 만듭니다
+# 필요한 폴더들이 없다면 새로 만듭니다
 for path in directory_mapping.values():
     if not os.path.exists(path):
         os.makedirs(path)
 
-# 14. 주제가 바뀌면 새로운 PDF 파일을 읽어옵니다
+# 주제가 바뀌면 새로운 PDF 파일을 읽어옵니다
 if st.session_state["chain"] is None or st.session_state["selected_category"] != category:
     st.session_state["chain"] = embed_files_from_directory(directory_mapping[category])
     st.session_state["selected_category"] = category
 
-# 15. PDF 파일을 읽어서 텍스트로 변환하는 함수
+# PDF 파일을 읽어서 텍스트로 변환하는 함수
 @st.cache_data
 def get_pdf_content(pdf_path):
     try:
@@ -154,7 +177,7 @@ def get_pdf_content(pdf_path):
         st.error(f"PDF 파일 읽기 오류: {str(e)}")
         return None
 
-# 16. 대화 내용 저장을 위한 새로운 함수들
+# 메화 내용 저장을 위한 새로운 함수들
 def get_chat_directory():
     chat_dir = pathlib.Path("chat_history")
     chat_dir.mkdir(exist_ok=True)
@@ -232,7 +255,7 @@ def load_chat_history(user_id, date=None):
 if "user_id" not in st.session_state:
     st.session_state["user_id"] = None
 
-# 17. 로그인/회원가입 처리 # streamlit tab
+# 로그인/회원가입 처리 부분 수정 # streamlit tab
 if not st.session_state["authenticated"]:
     tab1, tab2 = st.tabs(["로그인", "회원가입"])
     
@@ -280,7 +303,7 @@ if not st.session_state["authenticated"]:
     
     st.stop()
 
-# 18. 로그아웃 버튼 처리
+# 로그아웃 버튼 처리 수정
 if st.session_state["authenticated"]:
     with st.sidebar: # streamlit sidebar
         if st.button("로그아웃", key="logout_btn"): # streamlit button
@@ -364,90 +387,76 @@ if st.session_state["authenticated"]:
                             st.session_state["messages"] = json.load(f)
                         st.rerun()
 
-# 19. 메인 화면 구성: 대화 내용을 보여주고 관리하는 부분
-if st.session_state["chain"]:  # AI 처리 과정이 준비되었다면
-    # 지금까지 진행된 모든 대화를 하나씩 보여줍니다
+# 메인 화면 구성: 대화 내용만 표시
+if st.session_state["chain"]:
+    # 이전 대화 내용을 보여줍니다
     for i, message in enumerate(st.session_state["messages"]):
-        # 구분선 추가 (첫 질문 제외)
-        if i > 0:
-            st.markdown("---")
-            
-        # 질문을 눈에 띄게 표시합니다
-        st.markdown(f"### Q: {message['question']}")
-        
-        # 답변이 있는 경우의 처리
+        st.write(f"Q: {message['question']}")
         if message['answer']:
-            # 답변을 화시합니다
-            st.markdown("#### A:")
-            st.write(message['answer'])
+            st.write(f"A: {message['answer']}")
             
-            # 아직 피드백이 없는 경우 새로운 피드백을 생성합니다
             if 'feedback' not in message:
                 retriever = st.session_state["chain"]
                 docs = retriever.get_relevant_documents(message['question'])
                 
-                if docs:  # 관련 내용을 찾았다면
+                if docs:
                     context = docs[0].page_content
-                    feedback_chain = feedback_prompt | ChatOpenAI(
+                    llm = ChatOpenAI(
                         model="gpt-3.5-turbo-0125",
-                        temperature=0.2
-                    ) | StrOutputParser()
-                    
+                        temperature=0.2,
+                        max_tokens=1000,  # 출력 토큰 제한
+                        request_timeout=30,  # 타임아웃 설정
+                        cache=True  # 응답 캐싱
+                    )
+                    feedback_chain = feedback_prompt | llm | StrOutputParser()
                     feedback = feedback_chain.invoke({
                         "context": context,
                         "question": message['question'],
                         "answer": message['answer']
                     })
                     
-                    # 생성된 피드백을 저장합니다
+                    # 현재 메시지에 피드백과 context 추가
                     st.session_state["messages"][i]["feedback"] = feedback
                     st.session_state["messages"][i]["context"] = context
                     
-                    # 대화 내용을 파일에 저장합니다
+                    # 전체 메시지 저장
                     save_chat_history(st.session_state["user_id"], st.session_state["messages"])
                     st.rerun()
             
-            # 피드백이 있는 경우 강조해서 표시합니다
             if 'feedback' in message:
-                st.markdown("#### 💡 피드백:")
-                feedback_text = message['feedback']
-                
-                # "핵심 키워드:" 부분을 굵은 글씨로 강조
-                if "핵심 키워드:" in feedback_text:
-                    feedback_text = feedback_text.replace("핵심 키워드:", "**핵심 키워드:**")
-                
-                # 각 항목 제목을 굵은 글씨로 강조
-                items_to_bold = [
-                    "1. 답변의 좋은 점",
-                    "2. 보완이 필요한 점",
-                    "3. 추가로 언급하면 좋을 내용",
-                    "4. 개선된 답변 예시"
-                ]
-                
-                for item in items_to_bold:
-                    feedback_text = feedback_text.replace(item, f"**{item}**")
-                
-                st.markdown(feedback_text)
-                
-                # PDF 내용에서 현재 질문의 위치를 찾습니다
+                st.write("💡 피드백:")
+                st.write(message['feedback'])
                 content = message['context']
                 current_q = message['question']
                 start_idx = content.find(current_q)
                 
-                # 관련 내용을 추출합니다
                 if start_idx != -1:
                     next_q = content.find('`', start_idx + len(current_q) + 100)
                     section = content[start_idx:next_q] if next_q != -1 else content[start_idx:]
-        
-        # 답변이 없는 경우 (새로운 질문인 경우)
         else:
-            # 사용자가 답변을 입력할 수 있는 텍스트 영역을 표시합니다
-            user_answer = st.text_area("답변을 입력하세요:", key=f"answer_{i}")
-            # 답변 제출 버튼을 표시합니다
+            user_answer = st.text_area("답변을 입력하세요:", key=f"answer_{i}") # streamlit 
             if st.button("답변 제출", key=f"submit_{i}"):
-                # 입력된 답변을 저장합니다
                 st.session_state["messages"][i]["answer"] = user_answer
-                # 답변을 파일에 저장합니다
                 save_chat_history(st.session_state["user_id"], [st.session_state["messages"][i]])
-                # 화면을 새로고침하여 피드백을 생성합니다
                 st.rerun()
+# 기존 코드를 비동기 처리로 변경
+async def save_chat_history_async(user_id, messages):
+    with ThreadPoolExecutor() as executor:
+        await asyncio.get_event_loop().run_in_executor(
+            executor,
+            save_chat_history,
+            user_id,
+            messages
+        )
+
+def safe_api_call(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            st.error(f"오류가 발생했습니다: {str(e)}")
+            logging.error(f"Error in {func.__name__}: {str(e)}")
+            return None
+    return wrapper
+
