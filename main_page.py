@@ -1,13 +1,14 @@
 import streamlit as st
 from streamlit_option_menu import option_menu
 from PIL import Image
+from utils import switch_page
 
 # 페이지 설정
 im = Image.open("assistent.png")
 st.set_page_config(page_title="AI Interviewer", layout="centered", page_icon=im)
 
 # 언어 선택
-lan = st.selectbox("#### Language", ["English", "한국어"])
+lan = st.radio("Language", ["English", "한국어"], horizontal=True)
 
 # English 설정 시
 if lan == "English":
@@ -67,9 +68,9 @@ if lan == "English":
         - To start a new session, simply refresh the page.
         - Choose a subject, get started, and have fun!
         """)
-        # if st.button("Start Interview!"):
-        #     switch_page("Select Question Screen")
-        #     pass
+        if st.button("Go to Select Question!"):
+            switch_page("Select_Question")
+
 
     if selected == 'Provide Question':
         st.info("""
@@ -79,9 +80,9 @@ if lan == "English":
         - To start a new session, simply refresh the page.
         - Choose a topic, get started, and have fun!
         """)
-        # if st.button("Start Interview!"):
-        #     switch_page("Provide Question Screen")
-        #     pass
+        if st.button("Go to Provide Question!"):
+            switch_page("Provide_Question")
+
 
     st.markdown("#### Wiki")
     st.write('[Click here to view common FAQs, future updates and more!](https://jiatastic.notion.site/wiki-8d962051e57a48ccb304e920afa0c6a8?pvs=4)')
@@ -144,9 +145,9 @@ if lan == "한국어":
         - 새 세션을 시작하려면 페이지를 새로고침하면 됩니다.
         - 과목을 선택하고 시작해 즐겨보세요!
         """)
-        # if st.button("면접 시작!"):
-        #     switch_page("질문 페이지")
-        #     pass
+        if st.button("면접 시작!"):
+            switch_page("질문_선택")
+
 
     if selected == 'Provide Question':
         st.info("""
@@ -156,7 +157,7 @@ if lan == "한국어":
         - 새 세션을 시작하려면 페이지를 새로고침하기만 하면 됩니다.
         - 주제를 선택하고 시작하여 재미있게 즐겨보세요!
         """)
-        # if st.button("면접 시작!"):
-        #     switch_page("질문 페이지")
-        #     pass
+        if st.button("면접 시작!"):
+            switch_page("랜덤_질문")
+
 
