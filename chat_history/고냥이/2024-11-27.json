@@ -1,0 +1,10 @@
+[
+  {
+    "question": "파이썬에서  파일을  어떻게  삭제하나요 ?",
+    "answer": "os 모듈을 import 한 후 os.remove() 함수를 사용하여 파일을 삭제할수있다."
+  },
+  {
+    "question": "PEP 8이란  무엇인가요 ?",
+    "answer": "PEP(Python Enhancement Proposal)는 Python 코드를 포맷하는 방법을 지정하는 규\n칙 집합이다. 다른 사람과 원활하게 협업하려면 공통된 스타일 공유가 필요하며, 일관성 있\n는 스타일은 나중에 수정하기도 쉽다."
+  }
+]
