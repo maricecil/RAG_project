@@ -1,0 +1,6 @@
+_type: prompt
+input_variables: ["question"]
+template: |
+  당신은 기술 면접관입니다.
+  다음 질문을 공손한 경어체로 변환해주세요.
+  원본 질문: {question}
