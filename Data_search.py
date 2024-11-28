@@ -33,22 +33,28 @@ from python_module import python_questions
 from statistic_module import statistic_questions
 import time
 import torch
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+#환경변수에서 api가 가져오기
 openai.api_key = os.getenv("OPENAI_API_KEY1")
+#경고 무시 코드 입니다.(굳이 필요 없습니다. 경고창이 거슬리면 넣으시면 됩니다.)
 warnings.filterwarnings(action='ignore')
+#이 llm은 MultiQueryRetriever을 쓸 때, llm에 넣을 llm입니다.
 llm = ChatOpenAI(
     model='gpt-4o',
     temperature=0,
     max_tokens=500,
 )
+#client는 밑에서 쓰일 OpenAI입니다.
 client = OpenAI()
 model = ChatOpenAI(model="gpt-4")
+#여기서 미리 텍스트를 청크로 나눌 모델을 서언합니다
 splitter = RecursiveCharacterTextSplitter(chunk_size = 1000, chunk_overlap = 100)
+#임베딩 방법을 선택합니다.
 embeddings = OpenAIEmbeddings()
 
+# 여기서 전부 주석 처리를 하는 이유는 여기서 먼저 다운을 받으면 더 이상 로드 할 필요가 없기 때문입니다.
+# 빈 리스트를 하나 만듭니다
 # file_list = []
+# 여기서 pdf파일을 불러올 경로를 적습니다.
 # local = [
 #     PyPDFLoader('C:/Users/kevinkim/Downloads/project/OS.pdf'),
 #     PyPDFLoader('C:/Users/kevinkim/Downloads/project/DL.pdf'),
@@ -59,23 +65,30 @@ embeddings = OpenAIEmbeddings()
 #     PyPDFLoader('C:/Users/kevinkim/Downloads/project/NW.pdf'),
 #     PyPDFLoader('C:/Users/kevinkim/Downloads/project/Stat.pdf')
 # ]
+# 혹시 모르니 try except을 써줍니다
 # try:
-#     #doc1 = [page.extract_text() for page in load1.pages]
-#     #doc2 = [page.extract_text() for page in load2.pages]
+# 이 줄에서 먼저 local에 있는 pdf파일들을  하나씩 loader에 넣고
 #     for loader in local:
+# loader.load()를 통해 doc에 넣습니다.
 #         docs = loader.load()
+# 그리고 load()를 통해 불러온 값들을 하나씩 .extend를 통해 file_list에 넣습니다.
 #         file_list.extend(splitter.split_documents(docs))
+# 만약 불러올 수 없으면 에러가 뜹니다
 # except Exception as e:
 #         print(f'PDF 파일에 에러가 있습니다: {e}')
+# 이 부분은 uuid를 만드는 과정이니 생략해도 무방합니다. 하지만 uuid는 컴퓨터가 파일을 더 읽기 쉽게 만듭니다.(지금은 설명 생략인데 혹시 궁금하시면 물어봐주세요)
 # try:
 #     uuids = [str(uuid4()) for _ in range(len(file_list))]
+# 이제 불러온 file_list를 documents에 넣고, embedding, ids에 uuids를 넣어서 백터 스토어를 생성합니다
 #     vector_store = FAISS.from_documents(documents=file_list, embedding=embeddings, ids = uuids)
+# 그리고 .save_local("vector_store.bin")을 통해 vector_store.bin이라는 곳에 저장합니다(.bin은 그냥 가볍에 어떤 것을 저장하는 곳이라고 생각해주세요)
 #     vector_store.save_local("vector_store.bin")
 #     print("vector_store.bin 저장 완료")
 # except Exception as e:
 #     print(f"FAISS 저장 에러: {e}")
+#그리고 이제 load_local을 써서 vector_store.bin에서 값을 불러온 후 다시 한번 백터 스토어를 생성합니다.
 vector_store = FAISS.load_local("vector_store.bin", embeddings=embeddings, allow_dangerous_deserialization=True)
-parser = StrOutputParser()
+#이 함수는 값을 받으면 전처리를 해주는 코드입니다.
 class datapreprocessing:
     def __init__(self, result):
         self.result = result
@@ -87,10 +100,12 @@ class datapreprocessing:
         sentences = text.split('. ')
         clean_text = '. '.join([sentence.strip() for sentence in sentences if sentence])
         return clean_text
-    
+#여기서 리스트리서 설정인데, 첫번째는 MultiQueryRetriever를 설정하기 위한 리트리버입니다.
 retriever = vector_store.as_retriever(search_type = 'similarity', search_kwargs = {'k': 5})
+#이제 여기서 멀티쿼라를 설정해주고, 위에서 설정해 놓았던 llm과 리트리버를 다시 넣습니다.
 retriever = MultiQueryRetriever.from_llm(retriever=retriever, llm=llm)
 
+#여기서 이제 프롬프트를 설정합니다.
 contextual_prompt = ChatPromptTemplate.from_messages([
     SystemMessagePromptTemplate.from_template(
         "You are an AI assistant tasked with answering questions using the provided document. Always prioritize the document content for answering the question. "
@@ -100,6 +115,7 @@ contextual_prompt = ChatPromptTemplate.from_messages([
     HumanMessagePromptTemplate.from_template("documents: {documents}, question: {question}")
 ])
 
+#이 클래스는 프롬프트에 값을 알맞게 넣어주는 역할을 하는 함수입니다.
 class documenttoprompt:
     def __init__(self, contextual_prompt):
         self.contextual_prompt = contextual_prompt
@@ -114,7 +130,7 @@ class documenttoprompt:
             question = input.get('question', '')
         )
         return formatted_prompt
-
+#이건 리트리버를 받아 값을 찾아서 반환하는 함수입니다.
 class Retriever:
     def __init__(self, retriever):
         self.retriever = retriever
@@ -125,22 +141,23 @@ class Retriever:
             query = input
         response_doc = self.retriever.get_relevant_documents(query)
         return response_doc
+#이제 레그에 맞게 각각 알맞은 값들을 넣어줍니다.
 rag_chain = {
     'context' : Retriever(retriever),
     'prompt' : documenttoprompt(contextual_prompt),
     'llm' : model
 }
-#기본적으로 바꿔주세요!
+#기본적으로 바꿔주세요! 이제 여기서 각 프롬프트와 리설트를 가져올 경로를 적습니다.
 prompt_dir = r'C:/Users/kevinkim/Desktop/prompt/'
 result_dir = r'C:/Users/kevinkim/Desktop/results/'
 
 os.makedirs(prompt_dir, exist_ok=True)
 os.makedirs(result_dir, exist_ok=True)
-
+#이건 쿼리를 적으면 크 쿼리의 느낌표나 물음표를 제거하기 위한 전처리 작업 함수입니다.
 def filename_preprocessing(query):
     query = re.sub(r'[^\w\s]', '', query)
     return query
-
+#이건 지금 이 코드에서 쓰이지 않습니다. 혹시 쓸 필요 있으시면 쓰셔도 무방하며, 삭제해도 전혀 지장이 없습니다.
 def load_prompt(prompt_name):
     """프롬프트 파일 읽기"""
     prompt_path = os.path.join(prompt_dir, prompt_name)
@@ -149,7 +166,7 @@ def load_prompt(prompt_name):
     
     with open(prompt_path, 'r', encoding='utf-8') as file:
         return file.read()
-    
+#이 코드는 질문을 저장하기 위한 함수입니다.
 def save_prompt(query):
     query = filename_preprocessing(query)
     date_time = datetime.now().strftime("%Y-%m-%d_%H-%M")
@@ -166,7 +183,7 @@ def save_prompt(query):
         except Exception as e:
             print(f'에러발생: {e}')
     print(f"저장된 질문: {query}")
-    
+#이 함수는 답변을 저장하기 위한 함수입니다.
 def save_result(query, answer):
     query = filename_preprocessing(query)
     date_time = datetime.now().strftime("%Y-%m-%d_%H-%M")
@@ -190,6 +207,7 @@ def clean_query(query):
 chat_history = ChatMessageHistory()
 set_llm_cache(InMemoryCache())
 while True:
+    #이건 그냥 목록표를 만든것입니다.
     print("""반갑습니다! 당신의 IT 면접을 도와드릴 AI 입니다! 무엇을 도와드릴까요?
           먼저 어떤 주제를 원하시나요?
           1. 딥러닝(Deep Learning)
@@ -204,6 +222,7 @@ while True:
           10. 나가기(끄기)
           원하는 주제의 숫자혹은 주제의 이름을 적어주세요!
           """)
+    #이 부분도 똑같이 목록표입니다.
     top_page = input("원하는 주제를 골라주세요:")
     if top_page in ['10', 'quit',  'exit',  'out', '나가기']:
         print('즐거운 시간 되셨길 바랍니다!')
@@ -240,21 +259,29 @@ while True:
         print('운영체제을 고르셨군요! 면접때 자주 나오는 운영체제 문제들을 보여드리겠습니다. 좋은 시간 보내세요!' )
         print(os_questions)
         print('주제로 돌아갈면 back을 치세요! 혹은 프로그램을 끄실꺼면 나가기를 타입해주세요!')
+        #목록읅 관리하고 삭제하기 위한 일에 들어가겠습니다.
     # 전체 대화 히스토리 확인
     elif top_page.lower() in ['9', 'list','show me the list','리스트를 보여줘', '리스트']:
         print('\n현재 대화 히스토리')
+        #여기서 먼저 result를 저장해둔 디렉토리 경로를 가져옵니다.
         folder = os.listdir('C:/Users/kevinkim/Desktop/results/')
+        #여기서 enumerate을 통해 index와 그에 따른 폴더들을 가져옵니다
         for index, folder_list in enumerate(folder, start = 1):
+            #이렇게 되면 화면에 1. 이름 이런 식으로 나옵니다. 추후에 편집 가능합니다.
             print(f'질문: {index} 대답:{folder_list}')
         choose = input('혹시 다시 보고 싶은 답변이 있으시나요? 원하는 번호를 선택해 주세요!: ')
+        #여기서 다시 한번 숫자를 선택할 수 있습니다. 
         for index, file_name in enumerate(folder, start = 1):
             new_file = os.path.join('C:/Users/kevinkim/Desktop/results/' + file_name) 
+            #이번에는 만약 선택한 숫자가 인덱스에 포함되어 있다면,
             if index == int(choose):
+                #이번에는 파일을 열어 그 안의 값들을 가져옵니다.
                 with open(new_file, 'r', encoding= 'utf-8') as file:
                     file_content = file.read()
                     file_name = file_name.split('_')[0]
                     print(f"\n질문 : {file_name} \n대답 : {file_content}")
                 break
+        #이제는 삭제하는 방법입니다.
         decision = input('''답변이 마음에 드셨나요?
             1. 주제 다시 고르기
             2. 나가기(quit)
@@ -267,7 +294,7 @@ while True:
         elif decision in ['2', 'quit',  'exit',  'out', '나가기']:
             print('즐거운 시간 되셨길 바랍니다!')
             break
-            
+        #만약 삭제하기를 눌러, 아까처럼 목록을 보여주는 리스트를 만들고,
         elif decision in ['3', '답변 삭제하기', '답변삭제하기']:
             folder = os.listdir('C:/Users/kevinkim/Desktop/results/')
             for index, file_name in enumerate(folder, start = 1):
@@ -275,12 +302,13 @@ while True:
             choose_file = input('삭제할 파일을 선택하세요!')
             for index, file_name in enumerate(folder, start = 1):
                 if index == int(choose_file):
+                    #이번에도 똑같지만 밑에 .remove를 통해 지워줍니다.
                     new_file = os.path.join('C:/Users/kevinkim/Desktop/results/' + file_name)
                     file_name = file_name.split('_')[0]
                     os.remove(new_file)
                     print('해당 답변은 삭제되었습니다')
                 break
-            
+    #이건 그냥 잘못 적었을 경우 심심해서 넣어본 기능이니 삭제해도 무방합니다..
     else:
         print('정확한 주제를 골라주세요!')
         time.sleep(2)
@@ -290,8 +318,11 @@ while True:
         time.sleep(1)
         continue
     
+    #이제는 쿼리를 받아볼 차례입니다.
     query = input('질문을 입력하세요 : ')
+    #먼저 위에 filename이라는 함수를 사용해 쿼리의 전처치를 합니다.
     query = filename_preprocessing(query)
+    #만약 쿼리를 잘못 적거나 back을 치면 다시 돌아가는 것을 적었습니다.
     if query.lower() in ['10', 'quit',  'exit',  'out', '나가기', '끄기']:
         print('이용해 주셔서 감사합니다.')
         break
@@ -299,6 +330,7 @@ while True:
         continue
     chat_history.add_user_message(query)
 
+#이건 만약 같은 질문을 넣었을 경우, 방지하는 목표로 만들었습니다 이것 또한 삭제해도 무방합니다.
     duplicate_question = os.listdir('C:/Users/kevinkim/Desktop/prompt/')
     pattern = r'_\d{4}-\d{2}-d{2}_\d{2}_\d{2}$'
     duplicate_folder = []
@@ -313,7 +345,10 @@ while True:
                     continue
             except Exception as e:
                 print(f'에러발생: {e}')
+    #이제 적은 쿼리를 저장하는 함수를 씁니다.
     save_prompt(query)
+    #이제 위에서 썼던 함수들을 하나씩 쓸 차례입니다.
+    #rag_chain에 있는 값 값들을 불러, invoke를 시킴과 동시에 각 알맞는 값들을 넣어줍니다.
     first_query = rag_chain['context'].invoke({'question' : query})
     second_query = rag_chain['prompt'].invoke({
         'context' : first_query,
@@ -323,6 +358,7 @@ while True:
     llm_result = third_query.content
     forth_query = datapreprocessing(llm_result)
     last_query = forth_query.clean_text() 
+    #마지막으로 최종적으로 나온 값을 한번 더 걸러주는 AI를 만들었습니다.
     completion = client.chat.completions.create(
         model = 'gpt-4o',
         messages = [
@@ -344,6 +380,8 @@ while True:
         temperature = 0
         )
     answers = completion.choices[0].message.content
+    #이건 이제 나온 값을 저장하는 함수를 썼습니다.
     save_result(query, answers)
+    #이건 이제 이전 대화를 기억하도록 add_message를 썼습니다.
     chat_history.add_message(answers)
     print(answers, flush = True)
