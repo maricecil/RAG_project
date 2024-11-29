@@ -5,9 +5,28 @@ from utils import switch_page
 import pathlib
 import json
 
+
 # 페이지 설정
 im = Image.open("assistent.png")
 st.set_page_config(page_title="면접 튜터링", layout="centered", page_icon=im)
+
+# 사용자 데이터 경로부터 사용자 데이터 저장 함수까지는 다음 세션에서nst.session_state["authenticated"]를 사용하기 위해 정의했습니다.
+
+# 사용자 데이터 경로
+users_file_path = pathlib.Path("users.json")
+
+# 사용자 데이터 로드 함수
+def load_users():
+    
+    if users_file_path.exists():
+        with open(users_file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+# 사용자 데이터 저장 함수
+def save_users(users):
+    with open(users_file_path, 'w', encoding='utf-8') as f:
+        json.dump(users, f, ensure_ascii=False, indent=2)
 
 
 # 세션 상태 초기화
@@ -22,24 +41,21 @@ if not st.session_state["authenticated"]:
     st.markdown("### 로그인 또는 회원가입이 필요합니다.")
     tab1, tab2 = st.tabs(["로그인", "회원가입"])
 
+    # 사용자 데이터 로드
+    users = load_users()
+
     # 로그인 화면
     with tab1:
         login_id = st.text_input("사용자 ID:", key="login_id")
         login_pw = st.text_input("비밀번호:", type="password", key="login_pw")
         if st.button("로그인", key="login_btn"):
-            users_file = pathlib.Path("users.json")
-            if users_file.exists():
-                with open(users_file, 'r', encoding='utf-8') as f:
-                    users = json.load(f)
-                if login_id in users and users[login_id] == login_pw:
-                    st.session_state["authenticated"] = True
-                    st.session_state["user_id"] = login_id
-                    st.success("로그인 성공!")
-                    st.rerun()
-                else:
-                    st.error("아이디 또는 비밀번호가 일치하지 않습니다.")
+            if login_id in users and users[login_id] == login_pw:
+                st.session_state["authenticated"] = True
+                st.session_state["user_id"] = login_id
+                st.success("로그인 성공!")
+                st.rerun()
             else:
-                st.error("등록된 사용자가 없습니다. 회원가입을 해주세요.")
+                st.error("아이디 또는 비밀번호가 일치하지 않습니다.")
 
     with tab2:
         new_id = st.text_input("새로운 ID:", key="new_id")
@@ -51,19 +67,11 @@ if not st.session_state["authenticated"]:
             elif new_pw != new_pw_confirm:
                 st.error("비밀번호가 일치하지 않습니다.")
             else:
-                users_file = pathlib.Path("users.json")
-                if users_file.exists():
-                    with open(users_file, 'r', encoding='utf-8') as f:
-                        users = json.load(f)
-                else:
-                    users = {}
-
                 if new_id in users:
                     st.error("이미 존재하는 ID입니다.")
                 else:
                     users[new_id] = new_pw
-                    with open(users_file, 'w', encoding='utf-8') as f:
-                        json.dump(users, f, ensure_ascii=False, indent=2)
+                    save_users(users)  # 사용자 데이터 저장
                     st.success("회원가입이 완료되었습니다. 로그인해주세요.")
 
     st.stop()

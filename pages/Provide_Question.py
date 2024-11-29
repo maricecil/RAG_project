@@ -22,9 +22,16 @@ from langchain.prompts import PromptTemplate # AI 지시사항 템플릿을 만�
 from streamlit_option_menu import option_menu
 from PIL import Image
 from utils import switch_page
+import yaml
+from pathlib import Path
+import json
+
+# 페이지 설정
+st.set_page_config(page_title="무작위 질문")
 
 # PDF 매핑 (먼저 정의해야 함)
 CATEGORY_PDF_MAPPING = {
+    "선택하지 않음": "C:/Users/USER/REG_project/RAG_project/data/none.pdf",
     "python": "C:/Users/USER/REG_project/RAG_project/data/python/python.pdf",
     "machine_learning": "C:/Users/USER/REG_project/RAG_project/data/machine_learning/machine_learning.pdf",
     "deep_learning": "C:/Users/USER/REG_project/RAG_project/data/deep_learning/deep_learning.pdf",
@@ -35,6 +42,37 @@ CATEGORY_PDF_MAPPING = {
     "algorithm": "C:/Users/USER/REG_project/RAG_project/data/algorithm/algorithm.pdf",
 }
 
+#사용자 데이터 경로부터 로그인된 사용자 확인까지 main_page.py에서 사용자가 입력한 로그인 정보를 불러오고 확인하는 코드입니다.
+
+# 사용자 데이터 경로
+users_file_path = pathlib.Path("users.json")
+
+# 사용자 데이터 로드 함수
+def load_users():
+    if users_file_path.exists():
+        with open(users_file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+# 세션 상태 초기화
+if "user_id" not in st.session_state:
+    st.session_state["user_id"] = None  # 초기값 설정
+if "messages" not in st.session_state:
+    st.session_state["messages"] = []  # 초기값 설정
+
+# 로그인된 사용자 확인
+if not st.session_state["user_id"]:
+    st.error("로그인되지 않았습니다. 먼저 로그인해주세요.")
+    st.stop()
+
+users = load_users()
+current_user_id = st.session_state["user_id"]
+
+if current_user_id not in users:
+    st.error("사용자 정보를 확인할 수 없습니다. 다시 로그인해주세요.")
+    st.stop()
+
+st.write(f"환영합니다, {current_user_id}님!")
 
 # 세션 상태 초기화 함수
 def initialize_session_state():
@@ -67,20 +105,16 @@ def embed_pdf_file(pdf_path, openai_api_key):
         if not os.path.exists(pdf_path):
             st.error(f"PDF 파일이 존재하지 않습니다: {pdf_path}")
             return None
-
         # PDF 내용 읽기
         with open(pdf_path, "rb") as pdf_file:
             reader = PyPDF2.PdfReader(pdf_file)
             docs = [page.extract_text() for page in reader.pages if page.extract_text()]
-
         if not docs:
             st.error("PDF 파일이 비어 있습니다.")
             return None
-
         # 텍스트 분할
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=50)
         split_documents = text_splitter.split_text("\n".join(docs))
-
         # 텍스트 임베딩 생성
         embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
         vectorstore = FAISS.from_texts(split_documents, embedding=embeddings)
@@ -89,11 +123,27 @@ def embed_pdf_file(pdf_path, openai_api_key):
         st.error(f"PDF 처리 중 오류 발생: {e}")
         return None
 
+# 프롬프트 파일 불러오기
+def load_prompt(file_path):
+    try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            prompt_data = yaml.safe_load(file)  # YAML 파일 읽기
+        return prompt_data
+    except Exception as e:
+        raise RuntimeError(f"프롬프트 파일 로드 중 오류 발생: {e}")
 
+feedback_prompt = load_prompt("prompts/feedback_prompt.yaml")  # 피드백용 지시사항
 
+# 채팅 디렉토리를 반환하는 함수 정의
+def get_chat_directory():
+    # 현재 파일의 디렉토리 경로를 가져옵니다.
+    base_dir = Path(__file__).parent
+    # 'chat_history' 폴더를 기준으로 채팅 기록을 저장할 디렉토리를 설정합니다.
+    chat_dir = base_dir / "chat_history"
+    # 디렉토리가 존재하지 않으면 생성합니다.
+    chat_dir.mkdir(parents=True, exist_ok=True)
+    return chat_dir
 
-# 페이지 설정
-st.set_page_config(page_title="무작위 질문")
 
 # 세션 상태 초기화 호출
 initialize_session_state()
@@ -102,22 +152,19 @@ initialize_session_state()
 with st.sidebar:
     st.markdown("### AI 면접관")
     
-    # API 키 입력
-    openai_api_key = st.text_input("OpenAI API KEY", key="chatbot_api_key", type="password")
-    if st.button("API 키 저장"):
-        if openai_api_key.strip():
-            st.session_state["api_key"] = openai_api_key
-            st.success("API 키가 저장되었습니다!")
-        else:
-            st.error("유효한 API 키를 입력해주세요.")
-    
     # 분야 선택
     selected_category = st.selectbox(
         "분야를 선택하세요:",
         list(CATEGORY_PDF_MAPPING.keys()),
-        index=list(CATEGORY_PDF_MAPPING.keys()).index(st.session_state["selected_category"]),
+        index=list(CATEGORY_PDF_MAPPING.keys()).index("선택하지 않음"),
     )
     st.session_state["selected_category"] = selected_category
+
+    # 선택하지 않음일 경우 안내 메시지
+    if selected_category == "선택하지 않음":
+        st.warning("PDF 파일을 선택하지 않았습니다. 질문 생성을 위해 카테고리를 선택해주세요.")
+    else:
+        st.info(f"선택된 카테고리: {selected_category}")
 
     st.write("🎯 면접 질문")
     if not st.session_state["messages"]:
@@ -125,26 +172,24 @@ with st.sidebar:
     else:
         st.info("💡 새로운 질문을 생성하려면 아래 버튼을 클릭하세요")
 
-# 새로운 질문 생성 버튼
+    # 새로운 질문 생성 버튼
     if st.button("새로운 질문 생성", key="new_question_btn"):
-        # API 키 확인
-        if "api_key" not in st.session_state or not st.session_state["api_key"].strip():
-            st.error("API 키를 먼저 저장해주세요.")
-            st.stop()
+
         category = st.session_state["selected_category"]
         pdf_path = CATEGORY_PDF_MAPPING[category]
         if not os.path.exists(pdf_path):
             st.error(f"PDF 파일이 없습니다: {pdf_path}")
             st.info("해당 카테고리의 PDF 파일을 확인해주세요.")
             st.stop()
+
         try:
             content = get_pdf_content(pdf_path)
             if content:
                 questions = []
                 lines = content.split("\n")
 
-                # 최근 5개 질문 중복 방지
-                previous_questions = [msg["question"] for msg in st.session_state.get("messages", [])][-5:]
+                # 질문 중복 방지
+                previous_questions = [msg["question"] for msg in st.session_state.get("messages", [])]
                 previous_questions_str = "\n".join(previous_questions) if previous_questions else "이전 질문 없음"
 
                 for line in lines:
@@ -171,39 +216,68 @@ with st.sidebar:
             st.error(f"PDF 파일 읽기 오류: {str(e)}")
             st.info("PDF 파일이 존재하고 읽기 가능한지 확인해주세요.")
 
-# 메인 화면: ChatGPT 스타일 대화 인터페이스
-st.markdown("## AI 면접관과 대화하기")
-st.info("💬 이 세션에서는 AI 면접관과 채팅을 통해 질문과 답변을 주고받을 수 있습니다.")
+# 기존의 대화 내용 관리 섹션
+st.write("💬 대화 내용 관리")
 
-# 이전 대화 내용 표시
-if "chat_history" in st.session_state and st.session_state["chat_history"]:
-    for chat in st.session_state["chat_history"]:
-        if chat["role"] == "ai":
-            st.markdown(f"**🤖 AI 면접관:** {chat['content']}")
-        elif chat["role"] == "user":
-            st.markdown(f"**👤 사용자:** {chat['content']}")
+# 사용자의 채팅 디렉토리를 설정합니다.
+chat_dir = get_chat_directory() / st.session_state["user_id"]
 
-# 사용자 입력란
-st.markdown("### 👇 질문에 대한 답변을 입력하세요:")
-user_input = st.text_input("")
+# 사용자의 채팅 디렉토리가 없으면 생성합니다.
+chat_dir.mkdir(parents=True, exist_ok=True)
 
-# 응답 처리
-if st.button("전송"):
-    if user_input.strip():
-        # 사용자 입력 기록
-        st.session_state["chat_history"].append({"role": "user", "content": user_input})
-
-        # AI 답변 생성 (예제, 실제 OpenAI API 호출 가능)
-        ai_response = f"'{user_input}'에 대한 좋은 대답입니다! 추가로 다음 질문을 생각해보세요."
-        st.session_state["chat_history"].append({"role": "ai", "content": ai_response})
-
-        # 출력 업데이트
-        st.experimental_rerun()
+if chat_dir.exists():
+    # JSON 파일 목록을 가져와서 날짜 리스트를 생성합니다.
+    available_dates = [f.stem for f in chat_dir.glob("*.json")]
+    if available_dates:
+        view_date = st.selectbox(
+            "날짜 선택:",
+            sorted(available_dates, reverse=True),
+            key="view_date"
+        )
+        if st.button("선택한 날짜 보기"):
+            # 선택한 날짜의 대화 내용을 불러와서 session_state에 저장
+            chat_file = chat_dir / f"{view_date}.json"
+            if chat_file.exists():
+                with open(chat_file, 'r', encoding='utf-8') as f:
+                    st.session_state["messages"] = json.load(f)
+                st.experimental_rerun()
+            else:
+                st.error("선택한 날짜의 채팅 기록이 존재하지 않습니다.")
     else:
-        st.warning("빈 입력은 허용되지 않습니다.")
-
-# 질문 표시
-if "current_question" in st.session_state and st.session_state["current_question"]:
-    st.markdown(f"### 🧐 현재 질문: {st.session_state['current_question']}")
+        st.info("저장된 대화 내용이 없습니다.")
 else:
-    st.info("질문을 생성하려면 사이드바에서 선택하세요.")
+    st.info("저장된 대화 내용이 없습니다.")
+
+
+# 중앙 화면에 질문 출력
+st.markdown("## 무작위 질문 생성")
+
+if "messages" in st.session_state and st.session_state["messages"]:
+    for msg in st.session_state["messages"]:
+        with st.container():
+            # 질문 표시
+            st.markdown(f"### **❓ 질문:** {msg['question']}")
+            # 사용자의 응답이 있는 경우 응답 표시
+            if msg.get("answer"):
+                st.markdown(f"### **💬 응답:** {msg['answer']}")
+            else:
+                st.markdown("💬 아직 응답이 작성되지 않았습니다.")
+            st.markdown("---")
+else:
+    st.info("생성된 질문이 없습니다. 새로운 질문을 생성하세요.")
+
+# 사용자 입력
+st.markdown("### 면접 질문에 대한 응답을 입력하세요:")
+user_message = st.text_input("메시지를 입력하세요:", placeholder="여기에 메시지를 입력하세요...")
+
+# 전송 버튼
+if st.button("응답 저장"):
+    if user_message.strip():
+        if "messages" in st.session_state and st.session_state["messages"]:
+            st.session_state["messages"][-1]["answer"] = user_message
+            st.session_state["chat_history"].append(f"사용자: {user_message}")
+            st.success("응답이 저장되었습니다.")
+        else:
+            st.warning("응답을 저장할 질문이 없습니다. 먼저 질문을 생성하세요.")
+    else:
+        st.warning("빈 메시지는 입력할 수 없습니다.")
