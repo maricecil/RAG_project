@@ -2,10 +2,78 @@ import streamlit as st
 from streamlit_option_menu import option_menu
 from PIL import Image
 from utils import switch_page
+import pathlib
+import json
 
 # 페이지 설정
 im = Image.open("assistent.png")
 st.set_page_config(page_title="면접 튜터링", layout="centered", page_icon=im)
+
+
+# 세션 상태 초기화
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+if "user_id" not in st.session_state:
+    st.session_state["user_id"] = None
+
+# 로그인 처리
+if not st.session_state["authenticated"]:
+    # 문구 추가
+    st.markdown("### 로그인 또는 회원가입이 필요합니다.")
+    tab1, tab2 = st.tabs(["로그인", "회원가입"])
+
+    # 로그인 화면
+    with tab1:
+        login_id = st.text_input("사용자 ID:", key="login_id")
+        login_pw = st.text_input("비밀번호:", type="password", key="login_pw")
+        if st.button("로그인", key="login_btn"):
+            users_file = pathlib.Path("users.json")
+            if users_file.exists():
+                with open(users_file, 'r', encoding='utf-8') as f:
+                    users = json.load(f)
+                if login_id in users and users[login_id] == login_pw:
+                    st.session_state["authenticated"] = True
+                    st.session_state["user_id"] = login_id
+                    st.success("로그인 성공!")
+                    st.rerun()
+                else:
+                    st.error("아이디 또는 비밀번호가 일치하지 않습니다.")
+            else:
+                st.error("등록된 사용자가 없습니다. 회원가입을 해주세요.")
+
+    with tab2:
+        new_id = st.text_input("새로운 ID:", key="new_id")
+        new_pw = st.text_input("새로운 비밀번호:", type="password", key="new_pw")
+        new_pw_confirm = st.text_input("비밀번호 확인:", type="password", key="new_pw_confirm")
+        if st.button("회원가입", key="register_btn"):
+            if not new_id or not new_pw:
+                st.error("ID와 비밀번호를 모두 입력해주세요.")
+            elif new_pw != new_pw_confirm:
+                st.error("비밀번호가 일치하지 않습니다.")
+            else:
+                users_file = pathlib.Path("users.json")
+                if users_file.exists():
+                    with open(users_file, 'r', encoding='utf-8') as f:
+                        users = json.load(f)
+                else:
+                    users = {}
+
+                if new_id in users:
+                    st.error("이미 존재하는 ID입니다.")
+                else:
+                    users[new_id] = new_pw
+                    with open(users_file, 'w', encoding='utf-8') as f:
+                        json.dump(users, f, ensure_ascii=False, indent=2)
+                    st.success("회원가입이 완료되었습니다. 로그인해주세요.")
+
+    st.stop()
+
+# 로그아웃 버튼 처리
+st.sidebar.markdown(f"**사용자: {st.session_state['user_id']}**")
+if st.sidebar.button("로그아웃", key="logout_btn"):
+    st.session_state["authenticated"] = False
+    st.session_state["user_id"] = None
+    st.rerun()
 
 # 외국어 서비스를 추가하지 않게 된다면 이 부분과 아래도 수정하기
 lan = st.radio("Language", ["한국어"], horizontal=True)
