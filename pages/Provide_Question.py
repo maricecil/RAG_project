@@ -89,6 +89,9 @@ def embed_pdf_file(pdf_path, openai_api_key):
         st.error(f"PDF 처리 중 오류 발생: {e}")
         return None
 
+
+
+
 # 페이지 설정
 st.set_page_config(page_title="무작위 질문")
 
@@ -116,71 +119,91 @@ with st.sidebar:
     )
     st.session_state["selected_category"] = selected_category
 
-# 메인 화면
-st.markdown("## 무작위 질문 생성")
-st.info("📚 이 세션에서는 AI 면접관이 사용자가 선택한 과목에 대해 면접 질문을 생성하고 사용자의 대답을 평가합니다.")
-
-# 질문 생성 버튼
-st.write("🎯 면접 질문")
-if not st.session_state["messages"]:
-    st.info("👇 아래 버튼을 눌러 첫 면접 질문을 생성해보세요!")
-else:
-    st.info("💡 새로운 질문을 생성하려면 아래 버튼을 클릭하세요")
-
-if st.button("새로운 질문 생성", key="new_question_btn"):
-    category = st.session_state["selected_category"]
-    pdf_path = CATEGORY_PDF_MAPPING[category]
-
-    if not os.path.exists(pdf_path):
-        st.error(f"PDF 파일이 없습니다: {pdf_path}")
-        st.info("해당 카테고리의 PDF 파일을 확인해주세요.")
-        st.stop()
-
-    try:
-        content = get_pdf_content(pdf_path)
-        if content:
-            questions = []
-            lines = content.split("\n")
-
-            previous_questions = [msg["question"] for msg in st.session_state.get("messages", [])][-5:]
-            previous_questions_str = "\n".join(previous_questions) if previous_questions else "이전 질문 없음"
-
-            for line in lines:
-                line = line.strip()
-                if line.startswith("`") and line.endswith("`") and len(line) > 10:
-                    question_text = line.strip("`").strip()
-                    questions.append(question_text)
-
-            if questions:
-                used_questions = {msg["question"] for msg in st.session_state.get("messages", [])}
-                available_questions = [q for q in questions if q not in used_questions]
-
-                if available_questions:
-                    question = random.choice(available_questions)
-                    st.session_state["messages"].append({"question": question, "answer": ""})
-                    st.success(question)
-                else:
-                    st.warning("모든 질문을 완료했습니다. 다른 카테고리를 선택해주세요.")
-            else:
-                st.warning("PDF에서 백틱(`)으로 둘러싸인 질문을 찾을 수 없습니다.")
-        else:
-            st.error("PDF에서 텍스트를 추출할 수 없습니다.")
-    except Exception as e:
-        st.error(f"PDF 파일 읽기 오류: {str(e)}")
-        st.info("PDF 파일이 존재하고 읽기 가능한지 확인해주세요.")
-
-# 사용자 입력
-st.markdown("### 면접 질문에 대한 응답을 입력하세요:")
-user_message = st.text_input("메시지를 입력하세요:", placeholder="여기에 메시지를 입력하세요...")
-
-# 전송 버튼
-if st.button("전송"):
-    if user_message.strip():
-        st.session_state["chat_history"].append(f"사용자: {user_message}")
+    st.write("🎯 면접 질문")
+    if not st.session_state["messages"]:
+        st.info("👇 아래 버튼을 눌러 첫 면접 질문을 생성해보세요!")
     else:
-        st.warning("빈 메시지는 입력할 수 없습니다.")
+        st.info("💡 새로운 질문을 생성하려면 아래 버튼을 클릭하세요")
 
-# 채팅 기록 표시
-st.markdown("### 채팅 기록")
-for message in st.session_state["chat_history"]:
-    st.write(message)
+# 새로운 질문 생성 버튼
+    if st.button("새로운 질문 생성", key="new_question_btn"):
+        # API 키 확인
+        if "api_key" not in st.session_state or not st.session_state["api_key"].strip():
+            st.error("API 키를 먼저 저장해주세요.")
+            st.stop()
+        category = st.session_state["selected_category"]
+        pdf_path = CATEGORY_PDF_MAPPING[category]
+        if not os.path.exists(pdf_path):
+            st.error(f"PDF 파일이 없습니다: {pdf_path}")
+            st.info("해당 카테고리의 PDF 파일을 확인해주세요.")
+            st.stop()
+        try:
+            content = get_pdf_content(pdf_path)
+            if content:
+                questions = []
+                lines = content.split("\n")
+
+                # 최근 5개 질문 중복 방지
+                previous_questions = [msg["question"] for msg in st.session_state.get("messages", [])][-5:]
+                previous_questions_str = "\n".join(previous_questions) if previous_questions else "이전 질문 없음"
+
+                for line in lines:
+                    line = line.strip()
+                    if line.startswith("`") and line.endswith("`") and len(line) > 10:
+                        question_text = line.strip("`").strip()
+                        questions.append(question_text)
+
+                if questions:
+                    used_questions = {msg["question"] for msg in st.session_state.get("messages", [])}
+                    available_questions = [q for q in questions if q not in used_questions]
+
+                    if available_questions:
+                        question = random.choice(available_questions)
+                        st.session_state["messages"].append({"question": question, "answer": ""})
+                        st.session_state["current_question"] = question  # 현재 질문 저장
+                    else:
+                        st.warning("모든 질문을 완료했습니다. 다른 카테고리를 선택해주세요.")
+                else:
+                    st.warning("PDF에서 백틱(`)으로 둘러싸인 질문을 찾을 수 없습니다.")
+            else:
+                st.error("PDF에서 텍스트를 추출할 수 없습니다.")
+        except Exception as e:
+            st.error(f"PDF 파일 읽기 오류: {str(e)}")
+            st.info("PDF 파일이 존재하고 읽기 가능한지 확인해주세요.")
+
+# 메인 화면: ChatGPT 스타일 대화 인터페이스
+st.markdown("## AI 면접관과 대화하기")
+st.info("💬 이 세션에서는 AI 면접관과 채팅을 통해 질문과 답변을 주고받을 수 있습니다.")
+
+# 이전 대화 내용 표시
+if "chat_history" in st.session_state and st.session_state["chat_history"]:
+    for chat in st.session_state["chat_history"]:
+        if chat["role"] == "ai":
+            st.markdown(f"**🤖 AI 면접관:** {chat['content']}")
+        elif chat["role"] == "user":
+            st.markdown(f"**👤 사용자:** {chat['content']}")
+
+# 사용자 입력란
+st.markdown("### 👇 질문에 대한 답변을 입력하세요:")
+user_input = st.text_input("")
+
+# 응답 처리
+if st.button("전송"):
+    if user_input.strip():
+        # 사용자 입력 기록
+        st.session_state["chat_history"].append({"role": "user", "content": user_input})
+
+        # AI 답변 생성 (예제, 실제 OpenAI API 호출 가능)
+        ai_response = f"'{user_input}'에 대한 좋은 대답입니다! 추가로 다음 질문을 생각해보세요."
+        st.session_state["chat_history"].append({"role": "ai", "content": ai_response})
+
+        # 출력 업데이트
+        st.experimental_rerun()
+    else:
+        st.warning("빈 입력은 허용되지 않습니다.")
+
+# 질문 표시
+if "current_question" in st.session_state and st.session_state["current_question"]:
+    st.markdown(f"### 🧐 현재 질문: {st.session_state['current_question']}")
+else:
+    st.info("질문을 생성하려면 사이드바에서 선택하세요.")
