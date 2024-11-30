@@ -117,7 +117,7 @@ if user_input:
 try:
     # ChatOpenAI 객체 초기화
     chat_model = ChatOpenAI(
-        model="gpt-3.5-turbo-0125",
+        model="gpt-4o",
         openai_api_key=api_key,
         temperature=0.7
     )
@@ -133,16 +133,18 @@ try:
     질문: {selected_question}
     사용자 응답: {user_input}
     
-    “귀하는 제공된 문서를 사용하여 질문에 답변하는 임무를 맡은 AI 어시스턴트입니다. 항상 문서 콘텐츠에 우선순위를 두고 질문에 답변하세요. ”
-    “단, 이전 채팅을 기억해야 하며 문서에 충분한 정보가 부족한 경우 이전 채팅을 사용하여 추가 정보를 추가할 수 있습니다.”
-    “이전 채팅을 모두 기억해야 하며, 내용이 영어로 되어 있더라도 답변은 질문의 언어와 일치해야 합니다.”
-    "귀하는 상대방을 꼭 '지원자님'이라고 불러야합니다."
+    “You are an AI assistant tasked with answering questions using the documentation provided. Always prioritize document content before answering questions. ”
+    “However, you must remember previous chats and can use them to add additional information if the documentation lacks sufficient information.”
+    “You should remember all previous chats, and your answers should match the language of the question, even if the content is in English.”
+    “You must address the other person as 'Candidate'.”
 
-    답변할 때 다음 번호 순서대로 답변하세요. 
-    이 순서를 설명 할 때에는 :이전 까지만 사용자에게 표시하세요.
-    1. 피드백: 지원자의 답변에 대한 구체적인 피드백(정확성, 관련성, 불완전성 등).
-    2. 제안: 더 나은 답변을 작성하는 방법에 대한 제안.
-    3. 추가설명: 질문 주제에 대한 간단한 추가 설명(튜터링)
+    When answering, please answer in the following numerical order. 
+    When describing this order, show the user only from :before to :after.
+    1. feedback: Specific feedback about the applicant's answer (accuracy, relevance, incompleteness, etc.).
+    2. Suggestions: Suggestions on how to write a better answer.
+    3. Additional comments: A brief additional explanation (tutoring) on the topic of the question.
+
+Translated with www.DeepL.com/Translator (free version)
     """
     response = chain({"question": prompt, "chat_history": st.session_state.chat_history})
     ai_response = response["answer"]
