@@ -5,10 +5,8 @@ from utils import switch_page
 import pathlib
 import json
 
-
 # 페이지 설정
-im = Image.open("assistent.png")
-st.set_page_config(page_title="면접 튜터링", layout="centered", page_icon=im)
+st.set_page_config(page_title="면접 튜터링", layout="centered")
 
 # 사용자 데이터 경로부터 사용자 데이터 저장 함수까지는 다음 세션에서nst.session_state["authenticated"]를 사용하기 위해 정의했습니다.
 
@@ -76,6 +74,9 @@ if not st.session_state["authenticated"]:
 
     st.stop()
 
+image = Image.open("AI_logo.png")
+st.sidebar.image(image, use_container_width=True)
+
 # 로그아웃 버튼 처리
 st.sidebar.markdown(f"**사용자: {st.session_state['user_id']}**")
 if st.sidebar.button("로그아웃", key="logout_btn"):
@@ -92,7 +93,7 @@ if lan == "한국어":
     home_introduction = "AI로 면접 준비를 도와주는 AI 웹 개발자 면접 튜터링에 오신 것을 환영합니다."
 
     st.markdown("<style>#MainMenu{visibility:hidden;}</style>", unsafe_allow_html=True)
-    st.image(im, width=100)
+    st.image(image, width=100)
     st.markdown(f"""# {home_title} <span style=color:#2E9BF5><font size=5>""", unsafe_allow_html=True)
 
     st.markdown("AI 웹 개발자 면접 튜터링에 오신 것을 환영합니다! AI 개인 면접관으로 모의 면접을 진행합니다. 질문 유형과 직무 분야를 고르면 AI 면접관이 면접 예상 질문을 합니다.")
@@ -124,7 +125,7 @@ if lan == "한국어":
         - 과목을 선택하고 시작해 즐겨보세요!
         """)
         if st.button("면접 시작!"):
-            switch_page("랜덤 질문")
+            switch_page("main8")
 
 
     if selected == '질문 제공':
@@ -135,5 +136,5 @@ if lan == "한국어":
         - 새 세션을 시작하려면 페이지를 새로고침하기만 하면 됩니다.
         - 주제를 선택하고 시작하여 재미있게 즐겨보세요!
         """)
-        if st.button("면접 시작!"):
-            switch_page("랜덤_질문")
+        if st.button("공부 시작!"):
+            switch_page("공부방")
