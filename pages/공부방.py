@@ -90,7 +90,7 @@ pdf_file_path = {
 }
 
 # 질문 파일 경로 매핑
-questions_folder = "C:/Users/USER/REG_project/RAG_project/김준기님/"
+questions_folder = "C:/Users/USER/REG_project/RAG_project/질문/"
 topic_file_mapping = {
     "파이썬": "python_module.txt",
     "머신러닝": "ML_module.txt",
@@ -145,26 +145,19 @@ if "messages" not in st.session_state:
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = {}  # 카테고리별 대화 기록
 
-# session_state 초기화
-# if "initialized" not in st.session_state:
-#     st.session_state["initialized"] = True
-#     st.session_state["chat_history"] = {}
-#     st.session_state["messages"] = []
-#     st.session_state["user_id"] = None
-
 # 로그인된 사용자 확인
 if not st.session_state["user_id"]:
     st.error("로그인되지 않았습니다. 먼저 로그인해주세요.")
     st.stop()
 
 users = load_users()
-current_user_id = st.session_state["user_id"]
+user_id = st.session_state["user_id"]
 
-if current_user_id not in users:
+if user_id not in users:
     st.error("사용자 정보를 확인할 수 없습니다. 다시 로그인해주세요.")
     st.stop()
 
-st.success(f"환영합니다, {current_user_id}님!")
+st.success(f"환영합니다, {user_id}님!")
 
 # 주제 선택
 selected_topic = st.sidebar.selectbox("주제를 선택하세요", list(pdf_file_path.keys()))
