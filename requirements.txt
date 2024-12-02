@@ -1,0 +1,9 @@
+streamlit==1.40.2  # Streamlit 앱을 실행하기 위한 라이브러리
+streamlit-option-menu==0.4.0  # Streamlit 옵션 메뉴 플러그인
+Pillow==11.0.0     # 이미지 처리를 위한 PIL 라이브러리
+python-dotenv==1.0.1  # .env 파일 로드
+langchain==0.3.9  # LangChain 핵심 라이브러리
+langchain-openai==0.2.10  # LangChain의 OpenAI API 관련 모듈
+langchain-community==0.3.8  # LangChain 커뮤니티 추가 모듈
+langchain-core==0.3.21  # LangChain Core 모듈
+langchain-text-splitters==0.3.2  # 텍스트 분할 도구
