@@ -248,10 +248,6 @@ directory_mapping = {
     - os
 - **협업도구:** GitHub, Slack, Notion
 
-![서비스 아키텍처](https://github.com/user-attachments/assets/8311ee7d-c685-4276-80cb-43580908f90a)
-
-![화면 디자인](https://github.com/user-attachments/assets/7c07e77c-c533-44bc-842d-2fa9844010af)
-
 - **의사결정:**
 <br>
 - **Streamlit은** 웹 애플리케이션 프레임워크로 인터페이스를 구축하고, 사용자의 입력을 처리하며 데이터를 시각화하는데 매우 유용한 프로그램이라 생각되어 메인 프레임워크로 선택했습니다. 특히 파이썬을 기반으로 한  AI/ML과 잘 통합되고, 별도의 서버 없이 배포할 수 있어 선택하게 되었습니다. 
@@ -265,6 +261,10 @@ directory_mapping = {
 - **PyPDF2**는 PDF 처리 프레임워크로 페이지별로 데이터를 처리하여 메모리 관리에 효율적이고, streamlit 캐시 및 한국어를 효과적으로 처리해줘 선택하게 되었습니다. 또한 한 디렉터리에 있는 여러 PDF파일을 동시에 로드하여 구문 분석과 텍스트 추출에 강점이 있는 PyPDFDirectoryLoader 방식과 상호보완적으로 작용하는 강점이 있었습니다.
 <br>
 - **JSON파일을 로컬방식**으로 관리한 이유는 프로토타입의 개발과 테스트에 적합했기 때문입니다. 일주일 이라는 짧은 개발 시간이 주어졌기에 복잡한 데이터베이스를 설정하는 시간을 줄였고, 쉬운 백업과 디버깅으로 추가 비용까지 줄일 수 있었습니다. 테스트가 통과되면 DB를 통해 관리하고, 로그인 보안기능을 강화할 예정입니다.
+  
+![서비스 아키텍처](https://github.com/user-attachments/assets/8311ee7d-c685-4276-80cb-43580908f90a)
+
+![화면 디자인](https://github.com/user-attachments/assets/7c07e77c-c533-44bc-842d-2fa9844010af)
 
 ## **4. 배포 및 운영**
 
