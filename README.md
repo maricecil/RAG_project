@@ -281,7 +281,7 @@ directory_mapping = {
 
 ```python
 pip install -r requirements.txt
-streamlit run main8.py
+streamlit run 1_main.py
 ```
 
 ### **4.3 트러블 슈팅**
