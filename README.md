@@ -262,6 +262,7 @@ directory_mapping = {
 <br>
 - **JSON파일을 로컬방식**으로 관리한 이유는 프로토타입의 개발과 테스트에 적합했기 때문입니다. 일주일 이라는 짧은 개발 시간이 주어졌기에 복잡한 데이터베이스를 설정하는 시간을 줄였고, 쉬운 백업과 디버깅으로 추가 비용까지 줄일 수 있었습니다. 테스트가 통과되면 DB를 통해 관리하고, 로그인 보안기능을 강화할 예정입니다.
   
+  
 ![서비스 아키텍처](https://github.com/user-attachments/assets/8311ee7d-c685-4276-80cb-43580908f90a)
 
 ![화면 디자인](https://github.com/user-attachments/assets/7c07e77c-c533-44bc-842d-2fa9844010af)
