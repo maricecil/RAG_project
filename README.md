@@ -295,7 +295,7 @@ streamlit run main8.py
     - Prompt작성
     - 사용자 정보 저장
     - 시간 정보 구현
-- 자세한 내용은 [팀노션]([https://www.notion.so/teamsparta/b56a4b7a92be4401984a51bc59004046]) 을 확인해주세요.
+- 자세한 내용은 [팀노션](https://www.notion.so/teamsparta/b56a4b7a92be4401984a51bc59004046) 을 확인해주세요.
 
 ## **5. 확장성 및 유지보수**
 
